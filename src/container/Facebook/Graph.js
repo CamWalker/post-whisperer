@@ -41,8 +41,17 @@ class Graph extends Component {
 
   render() {
     const { result, summaryInfo } = this.props;
-    console.log(result);
-    let barData, sentenceBarData, privacyBarData, postTypeData, timeOfDay, timeFromLastPost, postLength;
+    let barData,
+    sentenceBarData,
+    privacyBarData,
+    postTypeData,
+    timeOfDay,
+    timeFromLastPost,
+    timeToNextPost,
+    postLength,
+    reactionTypeBarData,
+    keyWordBarData;
+
     if (result) {
       const defaultDataset = {
         backgroundColor: 'rgba(99,132,255,0.2)',
@@ -122,10 +131,35 @@ class Graph extends Component {
             result.offer * 100
           ],
         }]
+      };
+
+      reactionTypeBarData = {
+        labels: ['love', 'wow', 'haha', 'sad', 'angry'],
+        datasets: [{
+          ...colors,
+          label: '',
+          data: [
+            result.love * 100,
+            result.wow * 100,
+            result.haha * 100,
+            result.sad * 100,
+            result.angry * 100,
+          ],
+        }]
+      };
+
+      keyWordBarData = {
+        labels: [...summaryInfo.keyWords],
+        datasets: [{
+          ...colors,
+          label: '',
+          data: _.map(summaryInfo.keyWords, (word) => result[`kw-${word}`] * 100),
+        }]
       }
 
       timeOfDay = result.minutesOfDay * 60 * 1440;
       timeFromLastPost = result.timeFromLastPost * summaryInfo.maxTimeFromLastPost / 1000;
+      timeToNextPost = result.timeFromNextPost * summaryInfo.maxTimeFromLastPost / 1000;
       postLength = result.postLength * summaryInfo.maxPostLength;
     }
 
@@ -202,11 +236,52 @@ class Graph extends Component {
                 legend={{ display: false }}
               />
             </Paper>
+            <Paper style={style} zDepth={1}>
+              <Bar
+              	data={reactionTypeBarData}
+              	width={100}
+              	height={50}
+                options={{
+                  maintainAspectRatio: true,
+                  scales: {
+                    yAxes: [{
+                      ticks: {
+                          min: 0,
+                          max: 100,
+                      }
+                    }]
+                  }
+                }}
+                legend={{ display: false }}
+              />
+            </Paper>
+            <Paper style={style} zDepth={1}>
+              <Bar
+              	data={keyWordBarData}
+              	width={100}
+              	height={50}
+                options={{
+                  maintainAspectRatio: true,
+                  scales: {
+                    yAxes: [{
+                      ticks: {
+                          min: 0,
+                          max: 100,
+                      }
+                    }]
+                  }
+                }}
+                legend={{ display: false }}
+              />
+            </Paper>
             <Paper style={style2} zDepth={1}>
               Best Time of Day -- {secondsToTime(timeOfDay)}
             </Paper>
             <Paper style={style2} zDepth={1}>
               Time From Previous Post -- {secondsToString(timeFromLastPost)}
+            </Paper>
+            <Paper style={style2} zDepth={1}>
+              Time To Next Post -- {secondsToString(timeToNextPost)}
             </Paper>
             <Paper style={style2} zDepth={1}>
               Post Length -- {Math.ceil(postLength)} characters

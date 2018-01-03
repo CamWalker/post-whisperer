@@ -1,48 +1,36 @@
-# react-express-boilerplate
-Server Side Rendering (only production mode) using express.
+To Do:
 
-## Getting started
+Machine Learning
 
-### Prerequisites
+- better word analysis (1)
+- hidden layers? one is optimal for most scenarios. Number of nodes should be somewhere between number of inputs and number of outputs.
+- picture analysis? (3)
+- video analysis? (3)
 
-- Node.js ^6.x
-- npm ^3.x
-- yarn ^0.x
-- pm2 ^2.x
+Backend
 
-### Usage
+- -- create server. (1)
+- transfer neural network to backend. (1)
+- save posts/account data somewhere
+- save auth. Only auth/pull-data/train once per month.
+- Only train on new posts.
 
-1. Clone this repository and then remove `.git` directory.
-    ```
-    $ git clone https://github.com/iamdew/react-express-boilerplate.git
-    $ cd react-express-boilerplate
-    $ rm -rf .git
-    ```
-2. Install yarn and pm2
-    ```
-    $ npm install -g yarn pm2
-    ```
-    
-3. Rename config file and then edit the file. (`.env.example` to `.env`)
-    ```
-    PORT=4000
-    DEV_PORT=3000
-    SECRET_KEY="SECRET_KEY"
-    OG_TITLE=
-    OG_DESCRIPTION=
-    OG_IMAGE=
-    TITLE="React Express Boilerplate"
-    ```
- 
-4. Run server
-    ```
-    for development (using HMR)
-      $ yarn start:dev
-    for production (using pm2)
-      $ yarn start:prod
-      $ yarn stop
-    ```
-     
-## License
+Frontend
 
-MIT License
+- Make it look good (1)
+- Chrome Extension (2)
+- PWA (3)
+
+Platforms
+
+- -- Facebook (1)
+  - more than posts?
+- Twitter (2)
+- Instagram (2)
+- LinkedIn (2)
+- Pinterest (3)
+- Youtube (3)
+
+Other Features
+
+- payments (2)

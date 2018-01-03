@@ -3,12 +3,78 @@ import wordAnalyzer from 'word-frequency-analyzer';
 import SentenceTypeClassifier from 'sentence-type-classifier';
 import sentenceTokenizer from './natural/tokenizers/sentence_tokenizer';
 import PorterStemmer from './natural/stemmers/porter_stemmer';
+import natural from 'natural';
+const TfIdf = natural.TfIdf;
+const tfidf = new TfIdf();
+
 PorterStemmer.attach();
 const sentenceTokenize = new sentenceTokenizer();
 const sentenceClassifier = new SentenceTypeClassifier();
 
+const calculateSummaryInfo = (inputData) => {
 
-const transformDataIO = (inputData, summaryInfo, lastPostTime, reversed = false) => {
+  //calculate reaction decimal place
+  const maxReaction = _.reduce(inputData, (max, value) => {
+    if (!_.has(value, 'reactions')) {
+      return max > _.get(value.likes.summary, 'total_count', 0) ? max : _.get(value.likes.summary, 'total_count', 0);
+    }
+    return max > _.get(value.reactions.summary, 'total_count', 0) ? max : _.get(value.reactions.summary, 'total_count', 0);
+  }, 0);
+
+  //calculate comment decimal place
+  const maxComment = _.reduce(inputData, (max, value) => {
+    return max > _.get(value.comments.summary, 'total_count', 0) ? max : _.get(value.comments.summary, 'total_count', 0);
+  }, 0);
+
+  const maxShares = _.reduce(inputData, (max, value) => {
+    return max > _.get(value.shares, 'count', 0) ? max : _.get(value.shares, 'count', 0);
+  }, 0);
+
+  //calculate post length decimal place
+  const maxPostLength = _.reduce(inputData, (max, value) => {
+    return max > _.get(value.message, 'length', 0) ? max : _.get(value.message, 'length', 0);
+  }, 0);
+
+  //calculate timeFromLastPost decimal place
+  const maxTimeFromLastPost = _.reduce(inputData, (max, value, index) => {
+    const postDate = new Date(_.get(value, 'created_time'));
+    let previousPostDate;
+    if (_.get(inputData, index + 1, false)) {
+      previousPostDate = new Date(_.get(inputData[index + 1], 'created_time', null));
+    } else {
+      previousPostDate = new Date(postDate.getTime());
+    }
+    return max > postDate - previousPostDate ? max : postDate - previousPostDate;
+  }, 0);
+
+  // tf-idf
+  let concatText = _.reduce(inputData, (concatString, value) => {
+    return concatString + _.get(value, 'message', '');
+  }, '');
+
+  concatText = concatText.tokenizeAndStem();
+  tfidf.addDocument(concatText)
+
+  const keyWordsMap = {};
+  const keyWords = _.map(_.take(tfidf.listTerms(0), 25), term => term.term);
+
+  _.forEach(keyWords, (word) => {
+      keyWordsMap[`kw-${word}`] = 0;
+  });
+
+  return {
+    maxReaction,
+    maxComment,
+    maxShares,
+    maxPostLength,
+    maxTimeFromLastPost,
+    keyWords,
+    keyWordsMap,
+  };
+}
+
+
+const transformDataIO = (inputData, summaryInfo, lastPostTime, nextPostTime, reversed = false) => {
   const output = reversed ? 'input' : 'output';
   const input = reversed ? 'output' : 'input';
 
@@ -37,6 +103,7 @@ const transformDataIO = (inputData, summaryInfo, lastPostTime, reversed = false)
     // TIME
     minutesOfDay: 0,
     timeFromLastPost: 0,
+    timeFromNextPost: 0,
     // TEXT
     postLength: 0,
     ...summaryInfo.keyWordsMap,
@@ -57,16 +124,18 @@ const transformDataIO = (inputData, summaryInfo, lastPostTime, reversed = false)
     reactionCount: 0,
     commentCount: 0,
     shareCount: 0,
-  }
+  };
 
   // PRIVACY
-  finalData[output][_.camelCase(_.get(inputData, 'privacy.value'))] = 1;
+  if (_.camelCase(_.get(inputData, 'privacy.value'))) {
+    finalData[output][_.camelCase(_.get(inputData, 'privacy.value'))] = 1;
+  }
 
-  // transform Date/Time
+  // Post Date/Time
   const date = new Date(_.get(inputData, 'created_time'));
 
   // // DAY OF WEEK
-  var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   finalData[output][days[date.getDay()]] = 1;
 
   // // MINUTES OF DAY
@@ -82,10 +151,18 @@ const transformDataIO = (inputData, summaryInfo, lastPostTime, reversed = false)
   }
   finalData[output].timeFromLastPost = (date - lastPostCreateTime) / summaryInfo.maxTimeFromLastPost;
 
-  // transform Type
+  let nextPostCreateTime;
+  if (nextPostTime) {
+    nextPostCreateTime = new Date(nextPostTime);
+  } else {
+    nextPostCreateTime = new Date(date.getTime());
+  }
+  finalData[output].timeFromNextPost = (nextPostCreateTime - date) / summaryInfo.maxTimeFromLastPost;
+
+  // Post Type
   finalData[output][inputData.type] = 1;
 
-  // transform Text
+  // Post Text
   const message = _.get(inputData, 'message', '');
   _.forEach(_.filter(_.uniq(message.tokenizeAndStem()), (value) => {
     return _.includes(summaryInfo.keyWords, value)
@@ -104,7 +181,7 @@ const transformDataIO = (inputData, summaryInfo, lastPostTime, reversed = false)
 
   finalData[output].postLength = _.size(message) / summaryInfo.maxPostLength;
 
-  // transform Reactions
+  // REACTIONS
   if (!_.has(inputData, 'reactions')) {
     finalData[input].reactionCount = _.toNumber(_.get(inputData.likes.summary, 'total_count', 0)) / summaryInfo.maxReaction;
   } else {
@@ -128,14 +205,16 @@ const transformDataIO = (inputData, summaryInfo, lastPostTime, reversed = false)
     finalData[output].angry = 1;
   }
 
-  // transform Comments
+  // COMMENTS
   finalData[input].commentCount = _.toNumber(_.get(inputData.comments.summary, 'total_count', 0)) / summaryInfo.maxComment;
 
+  // SHARES
   finalData[input].shareCount = _.toNumber(_.get(inputData.shares, 'count', 0)) / summaryInfo.maxShares;
-
   return finalData;
 }
 
+
 export {
+  calculateSummaryInfo,
   transformDataIO,
 };

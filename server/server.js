@@ -53,7 +53,6 @@ app.get('*', (req, res) => {
             {routes}
         </StaticRouter>
     );
-
     if (context.url) {
         res.redirect(301, context.url);
     } else {

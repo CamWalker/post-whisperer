@@ -17,11 +17,11 @@ import TimePicker from 'material-ui/TimePicker';
 import Checkbox from 'material-ui/Checkbox';
 import CircularProgress from 'material-ui/CircularProgress';
 import Slider from 'material-ui/Slider';
-import Graph from './Graph';
 import {
   calculateSummaryInfo,
   transformDataIO,
 } from '../../utils/data-transformer';
+import Graph from './Graph';
 import './Facebook.css';
 
 class Facebook extends Component {
@@ -29,6 +29,9 @@ class Facebook extends Component {
     super(props);
     this.network = new brain.NeuralNetwork();
     this.reverseNetwork = new brain.NeuralNetwork();
+    this.reverseNetworkReactions = new brain.NeuralNetwork();
+    this.reverseNetworkComments = new brain.NeuralNetwork();
+
     this.posts = [];
     this.state = {
       stepIndex: 0,
@@ -53,86 +56,38 @@ class Facebook extends Component {
 
   responseFacebook = (response) => {
     this.handleNext();
-    this.posts = _.concat(this.posts, response.posts.data);
-    if (response.posts.paging) {
-      this.getMoreData(_.get(response.posts.paging, 'next'));
-    } else {
+
+    const profiles = _.concat([{
+      accessToken: _.get(response, 'accessToken', null),
+      id: _.get(response, 'id', null),
+      name: _.get(response, 'name', ''),
+      picture: _.get(response, 'picture', null),
+    }], _.get(response, 'accounts.data', []));
+
+
+    const profile = profiles[0]; //edit this to allow the user to select the profile
+
+
+    axios.post('/api/facebook', { profile })
+    .then((response) => {
+      console.log(response);
       this.handleNext();
-      this.transformData();
-    }
-  }
 
-  getMoreData = (nextUrl) => {
-    console.log('getting more from facebook');
-    axios.get(nextUrl).then((response) => {
-      const data = _.get(response, 'data');
-      this.posts = _.concat(this.posts, data.data);
-      const lastDateYear = _.toNumber(_.split(_.get(_.last(this.posts), 'created_time'), '-')[0]);
-      if (data.paging && _.size(this.posts) < 500 && lastDateYear > 2012) {
-        this.getMoreData(_.get(data.paging, 'next'));
-      } else {
-        this.handleNext();
-        setTimeout(() => {
-          this.transformData();
-        }, 1000);
-      }
+      this.network.fromJSON(_.get(response, 'data.networkJSON', {}));
+      this.reverseNetwork.fromJSON(_.get(response, 'data.reverseNetworkJSON', {}));
+      this.reverseNetworkReactions.fromJSON(_.get(response, 'data.reverseNetworkReactionsJSON', {}));
+      this.reverseNetworkComments.fromJSON(_.get(response, 'data.reverseNetworkCommentsJSON', {}));
+      this.summaryInfo = _.get(response, 'data.summaryInfo', {});
+      this.lastPostTime = _.get(response, 'data.lastPostTime', {});
+
+      const result = this.network.run({
+        reactionCount: 1,
+        commentCount: 1,
+        shareCount: 1,
+      });
+
+      this.setState({ result, complete: true });
     })
-  }
-
-  transformData = () => {
-    this.posts = _.filter(this.posts, (row) => {
-      const dateYear = _.toNumber(_.split(_.get(row, 'created_time'), '-')[0]);
-      return _.has(row, 'likes') && dateYear >= 2012
-    })
-    this.summaryInfo = calculateSummaryInfo(this.posts);
-    const transformedIOData = _.map(this.posts, (row, index) => transformDataIO(row, this.summaryInfo, _.get(_.get(this.posts, (index + 1), {}), 'created_time', null)));
-    this.network.train(transformedIOData, {
-      errorThresh: 0.005,
-      iterations: 5000,
-      log: false,
-      logPeriod: 100,
-      learningRate: 0.3
-    });
-
-    const reverseTransformedIOData = _.map(this.posts, (row, index) => transformDataIO(row, this.summaryInfo, _.get(_.get(this.posts, (index + 1), {}), 'created_time', null), true));
-    this.reverseNetwork.train(reverseTransformedIOData, {
-      errorThresh: 0.005,  // error threshold to reach
-      iterations: 5000,   // maximum training iterations
-      log: false,           // console.log() progress periodically
-      logPeriod: 100,       // number of iterations between logging
-      learningRate: 0.5    // learning rate
-    });
-
-    this.setState({
-      stepIndex: this.state.stepIndex + 1,
-    });
-
-    const result = this.network.run({
-      reactionCount: 1,
-      commentCount: 1,
-      shareCount: 1,
-    });
-
-    // const reactionResult = this.network.run({
-    //   reactionCount: 1,
-    // });
-    //
-    // const commentResult = this.network.run({
-    //   commentCount: 1,
-    // });
-    //
-    // const shareResult = this.network.run({
-    //   shareCount: 1,
-    // });
-    //
-    // const noResult = this.network.run({
-    //   reactionCount: 0,
-    //   commentCount: 0,
-    //   shareCount: 0,
-    // });
-    // console.log(result, reactionResult, commentResult, shareResult, noResult);
-
-    this.setState({ result, complete: true });
   }
 
   onFailure = (err) => {
@@ -198,6 +153,13 @@ class Facebook extends Component {
           },
         },
         reactions: {
+          data: [
+            { type: this.state.love ? 'LOVE' : 'LIKE' },
+            { type: this.state.wow ? 'WOW' : 'LIKE' },
+            { type: this.state.haha ? 'HAHA' : 'LIKE' },
+            { type: this.state.sad ? 'SAD' : 'LIKE' },
+            { type: this.state.angry ? 'ANGRY' : 'LIKE' },
+          ],
           summary: {
             total_count: 0,
           },
@@ -211,14 +173,18 @@ class Facebook extends Component {
           },
         },
       }
-      const reverseTransformedPost = transformDataIO(post, this.summaryInfo, _.get(_.get(this.posts, 0, {}), 'created_time', null), true);
+      const reverseTransformedPost = transformDataIO(post, this.summaryInfo, this.lastPostTime, true);
 
       result = this.reverseNetwork.run(reverseTransformedPost.input);
+      const resultReaction = this.reverseNetworkReactions.run(reverseTransformedPost.input);
+      const resultComment = this.reverseNetworkComments.run(reverseTransformedPost.input);
       console.log(
         reverseTransformedPost,
-        result.commentCount * this.summaryInfo.maxComment,
         result.reactionCount * this.summaryInfo.maxReaction,
-        result.shareCount * this.summaryInfo.maxShares
+        result.commentCount * this.summaryInfo.maxComment,
+        result.shareCount * this.summaryInfo.maxShares,
+        resultReaction.reactionCount * this.summaryInfo.maxReaction,
+        resultComment.commentCount * this.summaryInfo.maxComment,
       );
     }
 
@@ -231,21 +197,15 @@ class Facebook extends Component {
               <FacebookLogin
                 appId="926701747482913"
                 autoLoad={true}
-                fields="name,posts.limit(100){reactions.limit(1).summary(true),comments.limit(0).summary(true),shares,privacy,likes.limit(1).summary(true),type,created_time,message}"
-                scope="user_posts"
+                fields="accounts,name,picture{url}"
+                scope="user_posts,manage_pages"
                 callback={this.responseFacebook}
                 onFailure={this.onFailure}
               />
             </StepContent>
           </Step>
           <Step>
-            <StepLabel>Getting Data from Facebook</StepLabel>
-            <StepContent>
-              <CircularProgress />
-            </StepContent>
-          </Step>
-          <Step>
-            <StepLabel>Processing Data</StepLabel>
+            <StepLabel>Processing Data from Facebook</StepLabel>
             <StepContent>
               <CircularProgress />
             </StepContent>
@@ -277,6 +237,31 @@ class Facebook extends Component {
               label="Includes Video"
               checked={this.state.hasVideo}
               onCheck={(e, isChecked) => this.setState({ hasVideo: isChecked })}
+            />
+            <Checkbox
+              label="Love"
+              checked={this.state.love}
+              onCheck={(e, isChecked) => this.setState({ love: isChecked })}
+            />
+            <Checkbox
+              label="Wow"
+              checked={this.state.wow}
+              onCheck={(e, isChecked) => this.setState({ wow: isChecked })}
+            />
+            <Checkbox
+              label="Haha"
+              checked={this.state.haha}
+              onCheck={(e, isChecked) => this.setState({ haha: isChecked })}
+            />
+            <Checkbox
+              label="Sad"
+              checked={this.state.sad}
+              onCheck={(e, isChecked) => this.setState({ sad: isChecked })}
+            />
+            <Checkbox
+              label="Angry"
+              checked={this.state.angry}
+              onCheck={(e, isChecked) => this.setState({ angry: isChecked })}
             />
             <SelectField
               floatingLabelText="Privacy"
