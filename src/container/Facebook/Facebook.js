@@ -3,6 +3,7 @@ import brain from 'brain';
 import FacebookLogin from 'react-facebook-login';
 import _ from 'lodash';
 import axios from 'axios';
+import fireDb from '../../utils/firebase.js';
 import {
   Step,
   Stepper,
@@ -64,30 +65,49 @@ class Facebook extends Component {
       picture: _.get(response, 'picture', null),
     }], _.get(response, 'accounts.data', []));
 
+    const profile = profiles[0];
 
-    const profile = profiles[0]; //edit this to allow the user to select the profile
+    fireDb.ref('users/' + profile.id).once('value').then((userSnap) => {
+      console.log(userSnap.val());
+      const fireUserProfiles = _.get(userSnap.val(), 'profiles', null);
+      if (fireUserProfiles) {
+        console.log('its here');
+      } else {
+        const saveProfiles = {};
+        _.forEach(profiles, profileData => {
+          saveProfiles[profileData.id] = {
+            name: profileData.name || null,
+            picture: _.get(profileData, ['picture', 'data', 'url'], null),
+          }
+        });
 
-
-    axios.post('/api/facebook', { profile })
-    .then((response) => {
-      console.log(response);
-      this.handleNext();
-
-      this.network.fromJSON(_.get(response, 'data.networkJSON', {}));
-      this.reverseNetwork.fromJSON(_.get(response, 'data.reverseNetworkJSON', {}));
-      this.reverseNetworkReactions.fromJSON(_.get(response, 'data.reverseNetworkReactionsJSON', {}));
-      this.reverseNetworkComments.fromJSON(_.get(response, 'data.reverseNetworkCommentsJSON', {}));
-      this.summaryInfo = _.get(response, 'data.summaryInfo', {});
-      this.lastPostTime = _.get(response, 'data.lastPostTime', {});
-
-      const result = this.network.run({
-        reactionCount: 1,
-        commentCount: 1,
-        shareCount: 1,
-      });
-
-      this.setState({ result, complete: true });
+        fireDb.ref('users/' + profile.id).set({
+          profiles: saveProfiles,
+        });
+      }
     })
+
+
+    // axios.post('/api/facebook', { profile })
+    // .then((response) => {
+    //   console.log(response);
+    //   this.handleNext();
+    //
+    //   this.network.fromJSON(_.get(response, 'data.networkJSON', {}));
+    //   this.reverseNetwork.fromJSON(_.get(response, 'data.reverseNetworkJSON', {}));
+    //   this.reverseNetworkReactions.fromJSON(_.get(response, 'data.reverseNetworkReactionsJSON', {}));
+    //   this.reverseNetworkComments.fromJSON(_.get(response, 'data.reverseNetworkCommentsJSON', {}));
+    //   this.summaryInfo = _.get(response, 'data.summaryInfo', {});
+    //   this.lastPostTime = _.get(response, 'data.lastPostTime', {});
+    //
+    //   const result = this.network.run({
+    //     reactionCount: 1,
+    //     commentCount: 1,
+    //     shareCount: 1,
+    //   });
+    //
+    //   this.setState({ result, complete: true });
+    // })
   }
 
   onFailure = (err) => {

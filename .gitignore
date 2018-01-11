@@ -5,6 +5,7 @@ npm-debug.log
 .env
 .idea
 .DS_STORE
+config.js
 
 public/*
 !public/robots.txt
