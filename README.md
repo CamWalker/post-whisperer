@@ -3,14 +3,15 @@ To Do:
 Machine Learning
 
 - better word analysis (1)
-- hidden layers? one is optimal for most scenarios. Number of nodes should be somewhere between number of inputs and number of outputs.
+- Year analysis
+<!-- - hidden layers? one is optimal for most scenarios. Number of nodes should be somewhere between number of inputs and number of outputs. -->
 - picture analysis? (3)
 - video analysis? (3)
 
 Backend
 
 - -- create server. (1)
-- transfer neural network to backend. (1)
+<!-- - transfer neural network to backend. (1) -->
 - save posts/account data somewhere
 - save auth. Only auth/pull-data/train once per month.
 - Only train on new posts.

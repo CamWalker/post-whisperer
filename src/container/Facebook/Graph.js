@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import _ from 'lodash';
-import Paper from 'material-ui/Paper';
 import { HorizontalBar, Bar, Polar } from 'react-chartjs-2';
+import { Segment, Statistic } from 'semantic-ui-react';
 
 const style = {
   height: 280,
@@ -12,8 +12,6 @@ const style = {
   display: 'inline-block',
 };
 const style2 = {
-  height: 60,
-  width: 500,
   padding: 6,
   margin: 6,
   textAlign: 'center',
@@ -168,7 +166,7 @@ class Graph extends Component {
       <div>
         {result &&
           <div>
-            <Paper style={style} zDepth={1}>
+            <Segment style={style}>
               <Bar
               	data={barData}
               	width={100}
@@ -186,8 +184,8 @@ class Graph extends Component {
                 }}
                 legend={{ display: false }}
               />
-            </Paper>
-            <Paper style={style} zDepth={1}>
+            </Segment>
+            <Segment style={style}>
               <Polar
               	data={postTypeData}
                 options={{
@@ -197,8 +195,8 @@ class Graph extends Component {
                   }
                 }}
               />
-            </Paper>
-            <Paper style={style} zDepth={1}>
+            </Segment>
+            <Segment style={style}>
               <HorizontalBar
               	data={sentenceBarData}
               	width={100}
@@ -216,8 +214,8 @@ class Graph extends Component {
                 }}
                 legend={{ display: false }}
               />
-            </Paper>
-            <Paper style={style} zDepth={1}>
+            </Segment>
+            <Segment style={style}>
               <Bar
               	data={privacyBarData}
               	width={100}
@@ -235,8 +233,8 @@ class Graph extends Component {
                 }}
                 legend={{ display: false }}
               />
-            </Paper>
-            <Paper style={style} zDepth={1}>
+            </Segment>
+            <Segment style={style}>
               <Bar
               	data={reactionTypeBarData}
               	width={100}
@@ -254,8 +252,8 @@ class Graph extends Component {
                 }}
                 legend={{ display: false }}
               />
-            </Paper>
-            <Paper style={style} zDepth={1}>
+            </Segment>
+            <Segment style={style}>
               <Bar
               	data={keyWordBarData}
               	width={100}
@@ -273,19 +271,23 @@ class Graph extends Component {
                 }}
                 legend={{ display: false }}
               />
-            </Paper>
-            <Paper style={style2} zDepth={1}>
-              Best Time of Day -- {secondsToTime(timeOfDay)}
-            </Paper>
-            <Paper style={style2} zDepth={1}>
-              Time From Previous Post -- {secondsToString(timeFromLastPost)}
-            </Paper>
-            <Paper style={style2} zDepth={1}>
-              Time To Next Post -- {secondsToString(timeToNextPost)}
-            </Paper>
-            <Paper style={style2} zDepth={1}>
-              Post Length -- {Math.ceil(postLength)} characters
-            </Paper>
+            </Segment>
+            <Segment style={style2}>
+              <Statistic.Group
+                items={[
+                  { key: 'timeOfDay', label: 'Best Time of Day', value: secondsToTime(timeOfDay) },
+                  { key: 'postLength', label: 'Post Length in Characters', value: Math.ceil(postLength) },
+                ]}
+              />
+            </Segment>
+            <Segment style={style2}>
+              <Statistic.Group
+                items={[
+                  { key: 'previousPost', label: 'Optimal Time from Previous Post', value: secondsToString(timeFromLastPost) },
+                  { key: 'nextPost', label: 'Optimal Time to Next Post', value: secondsToString(timeToNextPost) },
+                ]}
+              />
+            </Segment>
           </div>
         }
       </div>

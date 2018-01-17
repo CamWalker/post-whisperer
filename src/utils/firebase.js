@@ -1,6 +1,12 @@
 import firebase from 'firebase';
 import config from '../../config.js';
 
-const fireDb = firebase.initializeApp(config.fbConfig);
+firebase.initializeApp(config.fbConfig);
+const fireFbLogin = new firebase.auth.FacebookAuthProvider();
+fireFbLogin.addScope('user_posts,manage_pages');
+const fireDb = firebase.database();
 
-export default fireDb.database();
+export {
+  fireDb,
+  fireFbLogin,
+}

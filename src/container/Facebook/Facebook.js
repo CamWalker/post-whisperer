@@ -1,23 +1,11 @@
 import React, { Component } from 'react';
 import brain from 'brain';
-import FacebookLogin from 'react-facebook-login';
 import _ from 'lodash';
 import axios from 'axios';
-import fireDb from '../../utils/firebase.js';
-import {
-  Step,
-  Stepper,
-  StepLabel,
-  StepContent,
-} from 'material-ui/Stepper';
-import SelectField from 'material-ui/SelectField';
-import MenuItem from 'material-ui/MenuItem';
-import TextField from 'material-ui/TextField';
-import DatePicker from 'material-ui/DatePicker';
-import TimePicker from 'material-ui/TimePicker';
-import Checkbox from 'material-ui/Checkbox';
-import CircularProgress from 'material-ui/CircularProgress';
-import Slider from 'material-ui/Slider';
+import { Button, Icon, Header, Modal, Input, Form } from 'semantic-ui-react'
+import DateTime from 'react-datetime';
+import firebase from 'firebase';
+import { fireDb, fireFbLogin } from '../../utils/firebase.js';
 import {
   calculateSummaryInfo,
   transformDataIO,
@@ -45,6 +33,7 @@ class Facebook extends Component {
       commentCount: 1,
       shareCount: 1,
       result: null,
+      isChoosingProfile: false,
     };
   }
 
@@ -55,59 +44,111 @@ class Facebook extends Component {
     });
   };
 
-  responseFacebook = (response) => {
-    this.handleNext();
+  facebookLogin = () => {
+    firebase.auth().signInWithPopup(fireFbLogin).then((result) => {
+      console.log('result: ', result);
+      this.facebookAccessToken = result.credential.accessToken;
+      const firebaseUser = result.user;
+      const facebookUserInfo = result.additionalUserInfo;
+      const defaultProfile = {
+        id: _.get(facebookUserInfo, ['profile', 'id']),
+        name: _.get(facebookUserInfo, ['profile', 'name']),
+        pictureUrl: _.get(facebookUserInfo, ['profile', 'picture', 'data', 'url']),
+      };
+      this.getFacebookProfiles(defaultProfile);
+    }).catch((error) => {
+      // Handle Errors here.
+      console.log('error: ', error);
+    });
+  }
 
-    const profiles = _.concat([{
-      accessToken: _.get(response, 'accessToken', null),
-      id: _.get(response, 'id', null),
-      name: _.get(response, 'name', ''),
-      picture: _.get(response, 'picture', null),
-    }], _.get(response, 'accounts.data', []));
-
-    const profile = profiles[0];
-
-    fireDb.ref('users/' + profile.id).once('value').then((userSnap) => {
-      console.log(userSnap.val());
-      const fireUserProfiles = _.get(userSnap.val(), 'profiles', null);
-      if (fireUserProfiles) {
-        console.log('its here');
-      } else {
-        const saveProfiles = {};
-        _.forEach(profiles, profileData => {
-          saveProfiles[profileData.id] = {
-            name: profileData.name || null,
-            picture: _.get(profileData, ['picture', 'data', 'url'], null),
-          }
-        });
-
-        fireDb.ref('users/' + profile.id).set({
-          profiles: saveProfiles,
-        });
+  getFacebookProfiles = (defaultProfile) => {
+    const { id } = defaultProfile;
+    axios.get(`https://graph.facebook.com/v2.11/${id}?`, {
+      params: {
+        fields: 'accounts{name,id,picture{url}}',
+        access_token: this.facebookAccessToken,
       }
+    }).then((result) => {
+      console.log(result)
+      const profiles = _.map(_.get(result, ['data', 'accounts', 'data'], []), (profile) => {
+        return {
+          id: _.get(profile, 'id'),
+          name: _.get(profile, 'name'),
+          pictureUrl: _.get(profile, ['picture', 'data', 'url']),
+        };
+      });
+      if (_.size(profiles) === 0) {
+        this.handleSelectProfile(defaultProfile)
+      } else {
+        profiles.unshift(defaultProfile);
+        //show modal with profiles
+        this.setState({ isChoosingProfile: true, profiles })
+      }
+    }).catch((error) => {
+      // Handle Errors here.
+      console.log('error: ', error);
+    });
+  }
+
+  handleSelectProfile = (profile) => {
+    this.setState({ isChoosingProfile: false })
+    axios.post('/api/facebook', { profile, accessToken: this.facebookAccessToken })
+    .then((response) => {
+      console.log(response);
+      this.handleNext();
+
+      this.network.fromJSON(_.get(response, 'data.networkJSON', {}));
+      this.reverseNetwork.fromJSON(_.get(response, 'data.reverseNetworkJSON', {}));
+      this.reverseNetworkReactions.fromJSON(_.get(response, 'data.reverseNetworkReactionsJSON', {}));
+      this.reverseNetworkComments.fromJSON(_.get(response, 'data.reverseNetworkCommentsJSON', {}));
+      this.summaryInfo = _.get(response, 'data.summaryInfo', {});
+      this.lastPostTime = _.get(response, 'data.lastPostTime', {});
+
+      const result = this.network.run({
+        reactionCount: 1,
+        commentCount: 1,
+        shareCount: 1,
+      });
+
+      this.setState({ result, complete: true });
     })
+  }
 
 
-    // axios.post('/api/facebook', { profile })
-    // .then((response) => {
-    //   console.log(response);
-    //   this.handleNext();
+
+
+  responseFacebook = (response) => {
+    // this.handleNext();
     //
-    //   this.network.fromJSON(_.get(response, 'data.networkJSON', {}));
-    //   this.reverseNetwork.fromJSON(_.get(response, 'data.reverseNetworkJSON', {}));
-    //   this.reverseNetworkReactions.fromJSON(_.get(response, 'data.reverseNetworkReactionsJSON', {}));
-    //   this.reverseNetworkComments.fromJSON(_.get(response, 'data.reverseNetworkCommentsJSON', {}));
-    //   this.summaryInfo = _.get(response, 'data.summaryInfo', {});
-    //   this.lastPostTime = _.get(response, 'data.lastPostTime', {});
+    // const profiles = _.concat([{
+    //   accessToken: _.get(response, 'accessToken', null),
+    //   id: _.get(response, 'id', null),
+    //   name: _.get(response, 'name', ''),
+    //   picture: _.get(response, 'picture', null),
+    // }], _.get(response, 'accounts.data', []));
     //
-    //   const result = this.network.run({
-    //     reactionCount: 1,
-    //     commentCount: 1,
-    //     shareCount: 1,
-    //   });
+    // const profile = profiles[0];
     //
-    //   this.setState({ result, complete: true });
-    // })
+    // fireDb.ref('users/' + profile.id).once('value').then((userSnap) => {
+    //   console.log(userSnap.val());
+    //   const fireUserProfiles = _.get(userSnap.val(), 'profiles', null);
+    //   if (fireUserProfiles) {
+    //     console.log('its here');
+    //   } else {
+    //     const saveProfiles = {};
+    //     _.forEach(profiles, profileData => {
+    //       saveProfiles[profileData.id] = {
+    //         name: profileData.name || null,
+    //         picture: _.get(profileData, ['picture', 'data', 'url'], null),
+    //       }
+    //     });
+    //
+    //     fireDb.ref('users/' + profile.id).set({
+    //       profiles: saveProfiles,
+    //     });
+    //   }
+    // });
   }
 
   onFailure = (err) => {
@@ -208,105 +249,140 @@ class Facebook extends Component {
       );
     }
 
+
+    let profiles = [];
+    if (this.state.isChoosingProfile) {
+      profiles = _.map(this.state.profiles, (profile) => {
+        console.log(profile);
+        return (
+          <div
+            key={profile.id}
+            className="profile-click"
+            onClick={() => this.handleSelectProfile(profile)}
+          >
+            <h4>
+              {profile.name}
+            </h4>
+            <img className="profile-images" src={profile.pictureUrl} />
+          </div>
+        );
+      })
+    }
+
     return (
       <div className="App">
-        <Stepper activeStep={this.state.stepIndex} orientation="vertical">
-          <Step>
-            <StepLabel>Login to Facebook</StepLabel>
-            <StepContent>
-              <FacebookLogin
-                appId="926701747482913"
-                autoLoad={true}
-                fields="accounts,name,picture{url}"
-                scope="user_posts,manage_pages"
-                callback={this.responseFacebook}
-                onFailure={this.onFailure}
-              />
-            </StepContent>
-          </Step>
-          <Step>
-            <StepLabel>Processing Data from Facebook</StepLabel>
-            <StepContent>
-              <CircularProgress />
-            </StepContent>
-          </Step>
-        </Stepper>
-        {this.state.complete &&
+        {!this.state.complete && <Button
+          color='facebook'
+          onClick={this.facebookLogin}
+        >
+          <Icon name='facebook' /> Facebook
+        </Button>}
+
+        <Modal open={this.state.isChoosingProfile} basic size='small'>
+          <Header icon='user circle outline' content='Choose a Profile' />
+          <Modal.Content>
+            <div className="profiles-list">
+              {profiles}
+            </div>
+          </Modal.Content>
+        </Modal>
+
+        { this.state.complete &&
           <div>
-            <TextField
+            <Form.TextArea
               value={this.state.message}
-              multiLine={true}
               rows={6}
-              rowsMax={6}
               onChange={(e, newValue) => this.setState({ changed: true, message: newValue })}
             />
-            <DatePicker
-              value={this.state.date}
-              onChange={(e, newValue) => this.setState({ changed: true, date: newValue })}
-            />
-            <TimePicker
-              value={this.state.date}
-              onChange={(e, newValue) => this.setState({ changed: true, date: newValue })}
-            />
-            <Checkbox
+            <div>
+              <DateTime
+                value={this.state.date}
+                onChange={(date) => {
+                  console.log(date);
+                  this.setState({ changed: true, date: date.toDate() })}
+                }
+              />
+            </div>
+            <Form.Checkbox
               label="Includes Photo"
               checked={this.state.hasPhoto}
-              onCheck={(e, isChecked) => this.setState({ hasPhoto: isChecked })}
+              onClick={(e, { checked }) => this.setState({ hasPhoto: checked, changed: true })}
             />
-            <Checkbox
+            <Form.Checkbox
               label="Includes Video"
               checked={this.state.hasVideo}
-              onCheck={(e, isChecked) => this.setState({ hasVideo: isChecked })}
+              onClick={(e, { checked }) => this.setState({ hasVideo: checked, changed: true })}
             />
-            <Checkbox
+            <Form.Checkbox
               label="Love"
               checked={this.state.love}
-              onCheck={(e, isChecked) => this.setState({ love: isChecked })}
+              onClick={(e, { checked }) => this.setState({ love: checked, changed: true })}
             />
-            <Checkbox
+            <Form.Checkbox
               label="Wow"
               checked={this.state.wow}
-              onCheck={(e, isChecked) => this.setState({ wow: isChecked })}
+              onClick={(e, { checked }) => this.setState({ wow: checked, changed: true })}
             />
-            <Checkbox
+            <Form.Checkbox
               label="Haha"
               checked={this.state.haha}
-              onCheck={(e, isChecked) => this.setState({ haha: isChecked })}
+              onClick={(e, { checked }) => this.setState({ haha: checked, changed: true })}
             />
-            <Checkbox
+            <Form.Checkbox
               label="Sad"
               checked={this.state.sad}
-              onCheck={(e, isChecked) => this.setState({ sad: isChecked })}
+              onClick={(e, { checked }) => this.setState({ sad: checked, changed: true })}
             />
-            <Checkbox
+            <Form.Checkbox
               label="Angry"
               checked={this.state.angry}
-              onCheck={(e, isChecked) => this.setState({ angry: isChecked })}
+              onClick={(e, { checked }) => this.setState({ angry: checked, changed: true })}
             />
-            <SelectField
-              floatingLabelText="Privacy"
+            <Form.Select
+              label="Privacy"
               value={this.state.privacy}
-              onChange={(e, key, value) => this.setState({ privacy: value })}
-            >
-              <MenuItem value="allFriends" primaryText="All Friends" />
-              <MenuItem value="friendsOfFriends" primaryText="Friends of Friends" />
-              <MenuItem value="everyone" primaryText="Everyone" />
-              <MenuItem value="custom" primaryText="Custom" />
-              <MenuItem value="self" primaryText="Self" />
-            </SelectField>
+              onChange={(e, key, value) => this.setState({ privacy: value, changed: true })}
+              options={[
+                { value: 'allFriends', text: 'All Friends' },
+                { value: 'friendsOfFriends', text: 'Friends of Friends' },
+                { value: 'everyone', text: 'Everyone' },
+                { value: 'custom', text: 'Custom' },
+                { value: 'self', text: 'Self' },
+              ]}
+            />
           </div>
         }
         {this.state.complete && <div className="slider-container">
-          <div className="sliders">
-            <div className="slider-label">Reactions:</div>
-            <div className="slider-label">Comments:</div>
-            <div className="slider-label">Shares:</div>
-          </div>
-          <div className="sliders">
-            <Slider style={{width: 150}} step={0.10} value={this.state.reactionCount} onChange={(event, newValue) => this.handleSlide(0, newValue)}/>
-            <Slider style={{width: 150}} step={0.10} value={this.state.commentCount} onChange={(event, newValue) => this.handleSlide(1, newValue)}/>
-            <Slider style={{width: 150}} step={0.10} value={this.state.shareCount} onChange={(event, newValue) => this.handleSlide(2, newValue)}/>
-          </div>
+          <Input
+            label={`Reactions`}
+            min={0}
+            max={1}
+            name='reactions'
+            onChange={(event, { name, value }) => this.handleSlide(0, value)}
+            step={0.1}
+            type='range'
+            value={this.state.reactionCount}
+          />
+          <Input
+            label={`Comments`}
+            min={0}
+            max={1}
+            name='comments'
+            onChange={(event, { name, value }) => this.handleSlide(1, value)}
+            step={0.1}
+            type='range'
+            value={this.state.commentCount}
+          />
+          <Input
+            label={`Shares`}
+            min={0}
+            max={1}
+            name='shares'
+            onChange={(event, { name, value }) => this.handleSlide(2, value)}
+            step={0.1}
+            type='range'
+            value={this.state.shareCount}
+          />
         </div>}
         <Graph result={this.state.result} summaryInfo={this.summaryInfo} />
       </div>

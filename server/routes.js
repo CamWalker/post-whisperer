@@ -20,6 +20,7 @@ router.post('/facebook', (req, res) => {
   const reverseNetworkComments = new brain.NeuralNetwork();
 
   function getMoreData(nextUrl) {
+    console.log('getMoreData', nextUrl);
     axios.get(nextUrl).then((response) => {
       const data = _.get(response, 'data');
       posts = _.concat(posts, data.data);
@@ -34,6 +35,7 @@ router.post('/facebook', (req, res) => {
   }
 
   function transformData() {
+    console.log('transformData');
     posts = _.filter(posts, (row) => {
       const dateYear = _.toNumber(_.split(_.get(row, 'created_time'), '-')[0]);
       return _.has(row, 'likes') && dateYear >= 2012
@@ -141,8 +143,9 @@ router.post('/facebook', (req, res) => {
 
     res.status(200).send({ networkJSON, reverseNetworkJSON, reverseNetworkReactionsJSON, reverseNetworkCommentsJSON, summaryInfo, recentPostTime: _.get(_.get(posts, 0, {}), 'created_time', null) })
   }
-
-  const { id, accessToken } = req.body.profile;
+  console.log('pre-call');
+  const { id } = req.body.profile;
+  const { accessToken } = req.body;
   axios.get(`https://graph.facebook.com/v2.11/${id}?`, {
     params: {
       fields: 'posts.limit(500){reactions.summary(true){type},comments.limit(0).summary(true),shares,privacy,likes.limit(0).summary(true),type,created_time,message}',
@@ -150,9 +153,11 @@ router.post('/facebook', (req, res) => {
     }
   })
   .then(response => {
+
     const responsePosts = response.data.posts;
     posts = _.concat(posts, responsePosts.data);
-    if (responsePosts.paging) {
+    console.log(responsePosts.paging);
+    if (_.get(responsePosts.paging, 'next', null)) {
       getMoreData(_.get(responsePosts.paging, 'next'));
     } else {
       console.log(posts.length);
