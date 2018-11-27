@@ -39,7 +39,7 @@
     "firebase": "^4.8.1",
     "jsonwebtoken": "^7.3.0",
     "lodash": "^4.17.4",
-    "natural": "^0.5.4",
+    "natural": "^0.5.6",
     "pug": "^2.0.0-beta11",
     "react": "^15.4.2",
     "react-chartjs-2": "^2.6.4",
